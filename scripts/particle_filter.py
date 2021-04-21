@@ -15,8 +15,9 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 import numpy as np
 from numpy.random import random_sample
 import math
+import time
 
-from random import randint, random
+from random import randint, random, uniform
 
 
 
@@ -119,22 +120,66 @@ class ParticleFilter:
     def get_map(self, data):
 
         self.map = data
-    
+
+
+    # given a point, returns the row-major order index 
+    # of the cell that the point lies in on the map
+    # returns origin if point not in map
+    def point_to_map(self, point):
+        map_origin = self.map.info.origin
+        horizontal_dist = (point.x - map_origin.position.x)/self.map.info.resolution
+        vertical_dist = (point.y - map_origin.position.y)/self.map.info.resolution
+        width_val = int(math.floor(horizontal_dist))
+        height_val = int(math.floor(vertical_dist))
+
+        # check point is in bounds
+        if width_val < 0 or width_val >= self.map.info.width:
+            return 0
+        elif height_val < 0 or height_val >= self.map.info.height:
+            return 0
+        
+        row_major_order_index =  width_val + height_val*self.map.info.width
+        return row_major_order_index
+
+
+    # checks if a particle is within the house and not on an object
+    def valid_particle(self, point):
+        if self.map.data[self.point_to_map(point)] == 0:
+            return True
+
+    # generates a random particle within the house
+    def gen_random_particle(self):
+        # randomly generate a point until we get one in bounds
+        pt = Point(uniform(-10, 10), uniform(-10, 10), 0)
+        while not self.valid_particle(pt):
+            pt = Point(uniform(-10, 10), uniform(-10, 10), 0)
+        # randomly generate orientation
+        quat_array = quaternion_from_euler(0, 0, uniform(0, 360))
+        orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
+        pose = Pose(pt, orientation)
+        
+        return Particle(pose, w =1)
+
 
     def initialize_particle_cloud(self):
-        
-        # TODO
-
+        #sleep a little to wait for map to publish
+        time.sleep(2)
+        #Initialize self.num_particles particles
+        for _ in range(self.num_particles):
+            self.particle_cloud.append(self.gen_random_particle())
 
         self.normalize_particles()
-
         self.publish_particle_cloud()
 
 
     def normalize_particles(self):
-        # make all the particle weights sum to 1.0
-        
-        # TODO
+        total_weight = 0
+        # get sum of weights
+        for particle in self.particle_cloud:
+            total_weight += particle.w
+        # divide by sum
+        for particle in self.particle_cloud:
+            particle.w = particle.w/total_weight
 
 
 
@@ -162,7 +207,7 @@ class ParticleFilter:
 
 
     def resample_particles(self):
-
+        pass
         # TODO
 
 
@@ -241,13 +286,13 @@ class ParticleFilter:
 
     def update_estimated_robot_pose(self):
         # based on the particles within the particle cloud, update the robot pose estimate
-        
+        pass
         # TODO
 
 
     
     def update_particle_weights_with_measurement_model(self, data):
-
+        pass
         # TODO
 
 
@@ -257,8 +302,16 @@ class ParticleFilter:
 
         # based on the how the robot has moved (calculated from its odometry), we'll  move
         # all of the particles correspondingly
+        xpos_delta = self.odom_pose.pose.position.x - self.odom_pose_last_motion_update.pose.position.x
+        ypos_delta = self.odom_pose.pose.position.y - self.odom_pose_last_motion_update.pose.position.y
+        angle_delta = get_yaw_from_pose(self.odom_pose.pose) - get_yaw_from_pose(self.odom_pose_last_motion_update.pose)
+        for particle in self.particle_cloud:
+            particle.pose.position.x += xpos_delta
+            particle.pose.position.y += ypos_delta
+            new_euler_angle = get_yaw_from_pose(particle.pose) + angle_delta
+            new_qtrn_arr = quaternion_from_euler(0, 0, new_euler_angle)
+            particle.pose.orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
 
-        # TODO
 
 
 
