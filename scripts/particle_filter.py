@@ -89,7 +89,9 @@ class ParticleFilter:
         self.ang_mvmt_threshold = (np.pi / 6)
 
         self.odom_pose_last_motion_update = None
-
+        
+        # indicate the angles that we plan on checking for particle weight update
+        self.directions_to_check = [(math.pi/4*index) for index in range(8)]
 
         # Setup publishers and subscribers
 
@@ -122,39 +124,43 @@ class ParticleFilter:
         self.map = data
 
 
-    # given a point, returns the row-major order index 
-    # of the cell that the point lies in on the map
-    # returns origin if point not in map
-    def point_to_map(self, point):
+    # given a row, column index, get the value of the map at those
+    # coordinates, and if out of bounds return -1
+    def get_map_val(self, row_index:int, col_index:int) -> int:
+        # check point is in bounds
+        if row_index < 0 or col_index >= self.map.info.width:
+            return -1
+        elif row_index < 0 or col_index >= self.map.info.height:
+            return -1
+
+        self.map.data[row_index+col_index * self.map.info.width]
+        
+
+    # given a point, returns the indices of the cell
+    # that the point lies in on the map as (row, column)
+    def point_to_map_indices(self, point:Point) -> (int, int):
         map_origin = self.map.info.origin
         horizontal_dist = (point.x - map_origin.position.x)/self.map.info.resolution
         vertical_dist = (point.y - map_origin.position.y)/self.map.info.resolution
-        width_val = int(math.floor(horizontal_dist))
-        height_val = int(math.floor(vertical_dist))
+        row_index = int(math.floor(horizontal_dist))
+        col_index = int(math.floor(vertical_dist))
 
-        # check point is in bounds
-        if width_val < 0 or width_val >= self.map.info.width:
-            return 0
-        elif height_val < 0 or height_val >= self.map.info.height:
-            return 0
-        
-        row_major_order_index =  width_val + height_val*self.map.info.width
-        return row_major_order_index
+        return (row_index, col_index)
 
 
     # checks if a particle is within the house and not on an object
-    def valid_particle(self, point):
-        if self.map.data[self.point_to_map(point)] == 0:
+    def valid_particle(self, point:Point) -> bool:
+        if self.map.data[self.get_map_val(*self.point_to_map_indices(point))] == 0:
             return True
 
     # generates a random particle within the house
-    def gen_random_particle(self):
+    def gen_random_particle(self) -> Particle:
         # randomly generate a point until we get one in bounds
         pt = Point(uniform(-10, 10), uniform(-10, 10), 0)
         while not self.valid_particle(pt):
             pt = Point(uniform(-10, 10), uniform(-10, 10), 0)
         # randomly generate orientation
-        quat_array = quaternion_from_euler(0, 0, uniform(0, 360))
+        quat_array = quaternion_from_euler(0, 0, uniform(0, 2*math.pi))
         orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
         pose = Pose(pt, orientation)
         
@@ -289,13 +295,37 @@ class ParticleFilter:
         pass
         # TODO
 
+    # given a particle and an angle, estimate the distance to the 
+    # nearest object in the direction of that angle relative to the pos,
+    # i.e. estimate the lidar reading from that particle
+    def estimate_particle_lidar(self, particle:Particle, angle:int) -> float:
+        map_indices = self.point_to_map_indices(particle.pose.position)
+        row_index = map_indices[0]
+        col_index = map_indices [1]
+        # this gives us the angle to check relative to the positive x-axis in radians
+        adjusted_angle = (angle + math.pi/2) + get_yaw_from_pose(particle.orientation)
+        map_val = self.get_map_val(row_index, col_index)
+        # iterate across map
+        step_size = 1
+        distance = 0
+        while map_val == 0:
+            row_index = row_index + int(round(step_size*np.cos(adjusted_angle)))
+            col_index = col_index + int(round(step_size*np.sin(adjusted_angle)))
+            map_val = self.get_map_val(row_index, col_index)
+            distance += step_size
+        # not necessary, but add on an amount proportional to how full the square is to better estimate
+        distance += map_val/100
+        # maybe write some code here to avoid immediately stopping rays that are parallel to walls
+        return (distance)*self.map.info.resolution
 
     
     def update_particle_weights_with_measurement_model(self, data):
-        pass
-        # TODO
-
-
+        for particle in self.particle_cloud:
+            difference_sum = 0
+            # for every angle to check, calculate difference between lidar values and estimated value
+            for angle in self.directions_to_check:
+                difference_sum += abs(data.ranges[angle] - self.estimate_particle_lidar(particle, angle))
+            particle.w = 1/difference_sum
         
 
     def update_particles_with_motion_model(self):
