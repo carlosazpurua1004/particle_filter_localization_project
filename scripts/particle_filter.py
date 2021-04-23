@@ -34,12 +34,39 @@ def get_yaw_from_pose(p):
     return yaw
 
 
-def draw_random_sample():
+def draw_random_sample(choice_list, probabilities, num_samples: int):
     """ Draws a random sample of n elements from a given list of choices and their specified probabilities.
     We recommend that you fill in this function using random_sample.
     """
-    # TODO
-    return
+    # we divide the interval (0, 1) into intervals accoring to the probabilities, and for a random point
+    # we perform a binary search on this interval to find the interval it lies in
+    partial_sums = []
+    psum = 0
+    #compute partial sums of the probabiltiies so we can binary search the interval
+    for prob in probabilities:
+        psum += prob
+        partial_sums.append(psum)
+    
+    #draw samples
+    samples = []
+    for _ in range(num_samples):
+        random_point = random_sample()
+        lower_bound = 0
+        upper_bound = len(choice_list) - 1
+        # binary search to find the interval the random point lies in
+        while lower_bound != upper_bound:
+            mid_point = (lower_bound + upper_bound)//2
+            if random_point < partial_sums[mid_point] :
+                upper_bound = mid_point
+            elif random_point >= partial_sums[mid_point+1]:
+                lower_bound = mid_point + 1
+            else:
+                lower_bound = mid_point + 1
+                upper_bound = mid_point + 1
+        #append sample to list of samples
+        samples.append(choice_list[lower_bound])
+
+    return samples
 
 
 class Particle:
@@ -128,13 +155,12 @@ class ParticleFilter:
     # coordinates, and if out of bounds return -1
     def get_map_val(self, row_index:int, col_index:int) -> int:
         # check point is in bounds
-        if row_index < 0 or col_index >= self.map.info.width:
+        if row_index < 0 or row_index >= self.map.info.width:
             return -1
-        elif row_index < 0 or col_index >= self.map.info.height:
+        elif col_index < 0 or col_index >= self.map.info.height:
             return -1
-
-        self.map.data[row_index+col_index * self.map.info.width]
         
+        return self.map.data[row_index + (col_index * self.map.info.width)]
 
     # given a point, returns the indices of the cell
     # that the point lies in on the map as (row, column)
@@ -150,7 +176,7 @@ class ParticleFilter:
 
     # checks if a particle is within the house and not on an object
     def valid_particle(self, point:Point) -> bool:
-        if self.map.data[self.get_map_val(*self.point_to_map_indices(point))] == 0:
+        if self.get_map_val(*(self.point_to_map_indices(point))) == 0:
             return True
 
     # generates a random particle within the house
@@ -164,18 +190,31 @@ class ParticleFilter:
         orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
         pose = Pose(pt, orientation)
         
-        return Particle(pose, w =1)
+        return Particle(pose, w=1)
 
+    # call in initialize particle cloud to test update weights
+    # clears all but a few particles, and puts one particle on the robots
+    # starting position
+    def test_update_weights(self):
+        self.particle_cloud = self.particle_cloud[0:5]
+        # create particle in same pose as intiail position of robot
+        quat_array = quaternion_from_euler(0, 0, 0)
+        orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
+        robot_pose = Pose(Point(-3,1,0), orientation)
+        self.particle_cloud.append(Particle(robot_pose, 1))
 
+    
     def initialize_particle_cloud(self):
         #sleep a little to wait for map to publish
         time.sleep(2)
         #Initialize self.num_particles particles
         for _ in range(self.num_particles):
             self.particle_cloud.append(self.gen_random_particle())
+        #self.test_update_weights()
 
         self.normalize_particles()
         self.publish_particle_cloud()
+        
 
 
     def normalize_particles(self):
@@ -186,6 +225,7 @@ class ParticleFilter:
         # divide by sum
         for particle in self.particle_cloud:
             particle.w = particle.w/total_weight
+            #print(particle.pose.position, particle.w)
 
 
 
@@ -213,9 +253,7 @@ class ParticleFilter:
 
 
     def resample_particles(self):
-        pass
-        # TODO
-
+        self.particle_cloud = draw_random_sample(self.particle_cloud, (p.w for p in self.particle_cloud), self.num_particles)
 
 
     def robot_scan_received(self, data):
@@ -303,7 +341,7 @@ class ParticleFilter:
         row_index = map_indices[0]
         col_index = map_indices [1]
         # this gives us the angle to check relative to the positive x-axis in radians
-        adjusted_angle = (angle + math.pi/2) + get_yaw_from_pose(particle.orientation)
+        adjusted_angle = (angle + math.pi/2) + get_yaw_from_pose(particle.pose)
         map_val = self.get_map_val(row_index, col_index)
         # iterate across map
         step_size = 1
@@ -324,7 +362,7 @@ class ParticleFilter:
             difference_sum = 0
             # for every angle to check, calculate difference between lidar values and estimated value
             for angle in self.directions_to_check:
-                difference_sum += abs(data.ranges[angle] - self.estimate_particle_lidar(particle, angle))
+                difference_sum += abs(data.ranges[int(angle*math.pi/180)] - self.estimate_particle_lidar(particle, angle))
             particle.w = 1/difference_sum
         
 
