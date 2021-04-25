@@ -16,6 +16,7 @@ import numpy as np
 from numpy.random import random_sample
 import math
 import time
+import copy
 
 from random import randint, random, uniform
 
@@ -64,7 +65,7 @@ def draw_random_sample(choice_list, probabilities, num_samples: int):
                 lower_bound = mid_point + 1
                 upper_bound = mid_point + 1
         #append sample to list of samples
-        samples.append(choice_list[lower_bound])
+        samples.append(copy.deepcopy(choice_list[lower_bound]))
 
     return samples
 
@@ -103,7 +104,7 @@ class ParticleFilter:
         self.map = OccupancyGrid()
 
         # the number of particles used in the particle filter
-        self.num_particles = 10000
+        self.num_particles = 1000
 
         # initialize the particle cloud array
         self.particle_cloud = []
@@ -196,17 +197,21 @@ class ParticleFilter:
     # clears all but a few particles, and puts one particle on the robots
     # starting position
     def test_update_weights(self):
-        self.particle_cloud = self.particle_cloud[0:5]
-        # create particle in same pose as intiail position of robot
-        quat_array = quaternion_from_euler(0, 0, 0)
-        orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
-        robot_pose = Pose(Point(-3,1,0), orientation)
-        self.particle_cloud.append(Particle(robot_pose, 1))
-        self.num_particles = 6
+        # list of test particles, including a particle in the same pose as initial posiiton of robot 
+        test_particles_vals = [(-3, 1, 0), (0, 0, 0), (-1, 3, math.pi/2), (1, 2, math.pi)]
+        self.particle_cloud = []
+        for p_vals in test_particles_vals:
+            quat_array = quaternion_from_euler(0, 0, p_vals[2])
+            orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
+            robot_pose = Pose(Point(p_vals[0],p_vals[1],0), orientation)
+            self.particle_cloud.append(Particle(robot_pose, 1))
+        self.num_particles = len(test_particles_vals)
+        self.testing_update_weights = True
 
     
     def initialize_particle_cloud(self):
         #sleep a little to wait for map to publish
+        self.testing_update_weights = False
         time.sleep(2)
         #Initialize self.num_particles particles
         for _ in range(self.num_particles):
@@ -226,7 +231,6 @@ class ParticleFilter:
         # divide by sum
         for particle in self.particle_cloud:
             particle.w = particle.w/total_weight
-            #print(particle.pose.position, "\nw:", particle.w)
 
 
 
@@ -254,7 +258,6 @@ class ParticleFilter:
 
 
     def resample_particles(self):
-        pass
         self.particle_cloud = draw_random_sample(self.particle_cloud, [p.w for p in self.particle_cloud], self.num_particles)
 
 
@@ -370,7 +373,7 @@ class ParticleFilter:
         row_index = map_indices[0]
         col_index = map_indices [1]
         # this gives us the angle to check relative to the positive x-axis in radians
-        adjusted_angle = (angle + math.pi/2) + get_yaw_from_pose(particle.pose)
+        adjusted_angle = (angle) + get_yaw_from_pose(particle.pose)
         map_val = self.get_map_val(row_index, col_index)
         # iterate across map
         step_size = 1
@@ -383,6 +386,8 @@ class ParticleFilter:
         # not necessary, but add on an amount proportional to how full the square is to better estimate
         distance += map_val/100
         # maybe write some code here to avoid immediately stopping rays that are parallel to walls
+        if self.testing_update_weights:
+            print("x:", particle.pose.position.x,"y: ", particle.pose.position.y, "a:", 180*angle/math.pi, "d: ", (distance)*self.map.info.resolution)
         return (distance)*self.map.info.resolution
 
     
@@ -403,12 +408,17 @@ class ParticleFilter:
         magnitude = math.sqrt(xpos_delta**2 + ypos_delta **2)
         angle_delta = get_yaw_from_pose(self.odom_pose.pose) - get_yaw_from_pose(self.odom_pose_last_motion_update.pose)
         for particle in self.particle_cloud:
-            particle_dir = get_yaw_from_pose(particle.pose)
+            # generate some noise for particle movement
+            movement_noise = np.random.normal(0, 0.075, 2)
+            # noise for particle direction, approx 3degree standard deviation 
+            angle_noise = np.random.normal(0, 0.051, 1) 
             # We estimate that the difference between the motion vector of the particle and the orientation
             # is angle_delta/2, and use this to transform the given motion vector to the coordinates of the particle
-            particle.pose.position.x += magnitude*math.cos(particle_dir - angle_delta/2)
-            particle.pose.position.y += magnitude*math.sin(particle_dir - angle_delta/2)
-            new_euler_angle = particle_dir + angle_delta
+            particle_dir = get_yaw_from_pose(particle.pose)
+            particle.pose.position.x += magnitude*math.cos(particle_dir - angle_delta/2) + movement_noise[0]
+            particle.pose.position.y += magnitude*math.sin(particle_dir - angle_delta/2) + movement_noise[1]
+            #update angle of particle based on turn
+            new_euler_angle = particle_dir + angle_delta + angle_noise[0]
             new_qtrn_arr = quaternion_from_euler(0, 0, new_euler_angle)
             particle.pose.orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
 
