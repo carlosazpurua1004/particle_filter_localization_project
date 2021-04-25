@@ -229,6 +229,7 @@ class ParticleFilter:
         # divide by sum
         for particle in self.particle_cloud:
             particle.w = particle.w/total_weight
+            #print(particle.pose.position, "\nw:", particle.w)
 
 
 
@@ -332,16 +333,36 @@ class ParticleFilter:
 
 
     def update_estimated_robot_pose(self):
-        # based on the particles within the particle cloud, update the robot pose estimate
-        sum_x = 0
-        sum_y = 0
+        # initialize variables for summing average particle positions/orientations
+        x = y = z = ox = oy = oz = ow = 0 
+        n = len(self.particle_cloud)
+        # loop through all particles to sum up position and orientation values
         for particle in self.particle_cloud:
-            sum_x += particle.pose.position.x
-            sum_y += particle.pose.position.y
-        #need to figure out how to average orientation, this is place holder
-        new_qtrn_arr = quaternion_from_euler(0, 0, 0)
-        orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
-        self.robot_estimate = Pose(Point(sum_x/self.num_particles, sum_y/self.num_particles, 0), orientation)
+            p = particle.pose
+
+            x += p.position.x
+            y += p.position.y
+            z += p.position.z
+
+            ox += p.orientation.x
+            oy += p.orientation.y
+            oz += p.orientation.z
+            ow += p.orientation.w
+
+            
+
+        # calculate average positions/orientations and update estimated position
+        self.robot_estimate.position.x = x/n
+        self.robot_estimate.position.y = y/n
+        self.robot_estimate.position.z = z/n
+
+        self.robot_estimate.orientation.x = ox/n
+        self.robot_estimate.orientation.y = oy/n
+        self.robot_estimate.orientation.z = oz/n
+        self.robot_estimate.orientation.w = ow/n
+
+        return
+
 
     # given a particle and an angle, estimate the distance to the 
     # nearest object in the direction of that angle relative to the pos,
@@ -390,12 +411,12 @@ class ParticleFilter:
             movement_noise = np.random.normal(0, 0.05, 2)
             # noise for particle direction, approx 3degree standard deviation 
             angle_noise = np.random.normal(0, 0.051, 1) 
+            particle_dir = get_yaw_from_pose(particle.pose)
             # We estimate that the difference between the motion vector of the particle and the orientation
             # is angle_delta/2, and use this to transform the given motion vector to the coordinates of the particle
-            particle_dir = get_yaw_from_pose(particle.pose)
             particle.pose.position.x += magnitude*math.cos(particle_dir - angle_delta/2) + movement_noise[0]
             particle.pose.position.y += magnitude*math.sin(particle_dir - angle_delta/2) + movement_noise[1]
-            #update angle of particle based on turn
+            # update angle of particle based on turn
             new_euler_angle = particle_dir + angle_delta + angle_noise[0]
             new_qtrn_arr = quaternion_from_euler(0, 0, new_euler_angle)
             particle.pose.orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
