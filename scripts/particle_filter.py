@@ -118,7 +118,7 @@ class ParticleFilter:
         self.odom_pose_last_motion_update = None
         
         # indicate the angles that we plan on checking for particle weight update
-        self.directions_to_check = [(math.pi/4*index) for index in range(8)]
+        self.directions_to_check = [(math.pi/2*index) for index in range(4)]
 
         # Setup publishers and subscribers
 
@@ -202,6 +202,7 @@ class ParticleFilter:
         orientation = Quaternion(quat_array[0], quat_array[1], quat_array[2], quat_array[3])
         robot_pose = Pose(Point(-3,1,0), orientation)
         self.particle_cloud.append(Particle(robot_pose, 1))
+        self.num_particles = 6
 
     
     def initialize_particle_cloud(self):
@@ -225,7 +226,7 @@ class ParticleFilter:
         # divide by sum
         for particle in self.particle_cloud:
             particle.w = particle.w/total_weight
-            #print(particle.pose.position, particle.w)
+            #print(particle.pose.position, "\nw:", particle.w)
 
 
 
@@ -253,7 +254,8 @@ class ParticleFilter:
 
 
     def resample_particles(self):
-        self.particle_cloud = draw_random_sample(self.particle_cloud, (p.w for p in self.particle_cloud), self.num_particles)
+        pass
+        self.particle_cloud = draw_random_sample(self.particle_cloud, [p.w for p in self.particle_cloud], self.num_particles)
 
 
     def robot_scan_received(self, data):
@@ -330,8 +332,15 @@ class ParticleFilter:
 
     def update_estimated_robot_pose(self):
         # based on the particles within the particle cloud, update the robot pose estimate
-        pass
-        # TODO
+        sum_x = 0
+        sum_y = 0
+        for particle in self.particle_cloud:
+            sum_x += particle.pose.position.x
+            sum_y += particle.pose.position.y
+        #need to figure out how to average orientation, this is place holder
+        new_qtrn_arr = quaternion_from_euler(0, 0, 0)
+        orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
+        self.robot_estimate = Pose(Point(sum_x/self.num_particles, sum_y/self.num_particles, 0), orientation)
 
     # given a particle and an angle, estimate the distance to the 
     # nearest object in the direction of that angle relative to the pos,
@@ -362,21 +371,24 @@ class ParticleFilter:
             difference_sum = 0
             # for every angle to check, calculate difference between lidar values and estimated value
             for angle in self.directions_to_check:
-                difference_sum += abs(data.ranges[int(angle*math.pi/180)] - self.estimate_particle_lidar(particle, angle))
+                difference_sum += abs(min(data.ranges[int(angle*math.pi/180)], data.range_max) - min(self.estimate_particle_lidar(particle, angle), data.range_max))
             particle.w = 1/difference_sum
         
 
     def update_particles_with_motion_model(self):
-
         # based on the how the robot has moved (calculated from its odometry), we'll  move
         # all of the particles correspondingly
         xpos_delta = self.odom_pose.pose.position.x - self.odom_pose_last_motion_update.pose.position.x
         ypos_delta = self.odom_pose.pose.position.y - self.odom_pose_last_motion_update.pose.position.y
+        magnitude = math.sqrt(xpos_delta**2 + ypos_delta **2)
         angle_delta = get_yaw_from_pose(self.odom_pose.pose) - get_yaw_from_pose(self.odom_pose_last_motion_update.pose)
         for particle in self.particle_cloud:
-            particle.pose.position.x += xpos_delta
-            particle.pose.position.y += ypos_delta
-            new_euler_angle = get_yaw_from_pose(particle.pose) + angle_delta
+            particle_dir = get_yaw_from_pose(particle.pose)
+            # We estimate that the difference between the motion vector of the particle and the orientation
+            # is angle_delta/2, and use this to transform the given motion vector to the coordinates of the particle
+            particle.pose.position.x += magnitude*math.cos(particle_dir - angle_delta/2)
+            particle.pose.position.y += magnitude*math.sin(particle_dir - angle_delta/2)
+            new_euler_angle = particle_dir + angle_delta
             new_qtrn_arr = quaternion_from_euler(0, 0, new_euler_angle)
             particle.pose.orientation = Quaternion(new_qtrn_arr[0], new_qtrn_arr[1], new_qtrn_arr[2], new_qtrn_arr[3])
 
