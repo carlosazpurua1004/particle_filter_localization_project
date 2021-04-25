@@ -396,7 +396,7 @@ class ParticleFilter:
             # for every angle to check, calculate difference between lidar values and estimated value
             for angle in self.directions_to_check:
                 difference_sum += abs(min(data.ranges[int(angle*math.pi/180)], data.range_max) - min(self.estimate_particle_lidar(particle, angle), data.range_max))
-            particle.w = 1/difference_sum
+            particle.w = 1/max(difference_sum, 0.01)
         
 
     def update_particles_with_motion_model(self):
@@ -408,9 +408,9 @@ class ParticleFilter:
         angle_delta = get_yaw_from_pose(self.odom_pose.pose) - get_yaw_from_pose(self.odom_pose_last_motion_update.pose)
         for particle in self.particle_cloud:
             # generate some noise for particle movement
-            movement_noise = np.random.normal(0, 0.05, 2)
-            # noise for particle direction, approx 3degree standard deviation 
-            angle_noise = np.random.normal(0, 0.051, 1) 
+            movement_noise = np.random.normal(0, 0.07, 2)
+            # noise for particle direction, approx 4 degree standard deviation 
+            angle_noise = np.random.normal(0, 0.068, 1) 
             particle_dir = get_yaw_from_pose(particle.pose)
             # We estimate that the difference between the motion vector of the particle and the orientation
             # is angle_delta/2, and use this to transform the given motion vector to the coordinates of the particle
