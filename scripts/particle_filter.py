@@ -16,6 +16,7 @@ import numpy as np
 from numpy.random import random_sample
 import math
 import time
+import copy
 
 from random import randint, random, uniform
 
@@ -64,7 +65,7 @@ def draw_random_sample(choice_list, probabilities, num_samples: int):
                 lower_bound = mid_point + 1
                 upper_bound = mid_point + 1
         #append sample to list of samples
-        samples.append(choice_list[lower_bound])
+        samples.append(copy.deepcopy(choice_list[lower_bound]))
 
     return samples
 
@@ -389,8 +390,8 @@ class ParticleFilter:
         for particle in self.particle_cloud:
             # generate some noise for particle movement
             movement_noise = np.random.normal(0, 0.075, 2)
-            # noise for particle direction, 1degree standard deviation 
-            angle_noise = np.random.normal(0, 0.017, 1) 
+            # noise for particle direction, approx 3degree standard deviation 
+            angle_noise = np.random.normal(0, 0.051, 1) 
             # We estimate that the difference between the motion vector of the particle and the orientation
             # is angle_delta/2, and use this to transform the given motion vector to the coordinates of the particle
             particle_dir = get_yaw_from_pose(particle.pose)
