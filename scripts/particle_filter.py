@@ -198,7 +198,7 @@ class ParticleFilter:
     # starting position
     def test_update_weights(self):
         # list of test particles, including a particle in the same pose as initial posiiton of robot 
-        test_particles_vals = [(-3, 1, 0), (0, 0, 0), (-1, 3, math.pi/2), (1, 2, math.pi)]
+        test_particles_vals = [(-3, 1, 0), (0, 0, 0), (-1, 3, math.pi/2), (1, 2, math.pi)]*100
         self.particle_cloud = []
         for p_vals in test_particles_vals:
             quat_array = quaternion_from_euler(0, 0, p_vals[2])
@@ -206,12 +206,10 @@ class ParticleFilter:
             robot_pose = Pose(Point(p_vals[0],p_vals[1],0), orientation)
             self.particle_cloud.append(Particle(robot_pose, 1))
         self.num_particles = len(test_particles_vals)
-        self.testing_update_weights = True
 
     
     def initialize_particle_cloud(self):
         #sleep a little to wait for map to publish
-        self.testing_update_weights = False
         time.sleep(2)
         #Initialize self.num_particles particles
         for _ in range(self.num_particles):
@@ -350,24 +348,24 @@ class ParticleFilter:
     # i.e. estimate the lidar reading from that particle
     def estimate_particle_lidar(self, particle:Particle, angle:int) -> float:
         map_indices = self.point_to_map_indices(particle.pose.position)
-        row_index = map_indices[0]
-        col_index = map_indices [1]
+        start_row_index = map_indices[0]
+        start_col_index = map_indices [1]
         # this gives us the angle to check relative to the positive x-axis in radians
         adjusted_angle = (angle) + get_yaw_from_pose(particle.pose)
-        map_val = self.get_map_val(row_index, col_index)
+        map_val = self.get_map_val(start_row_index, start_col_index)
         # iterate across map
-        step_size = 1
+        step_size = 0.5
         distance = 0
+        ray_row_index = map_indices[0]
+        ray_col_index = map_indices [1]
         while map_val == 0:
-            row_index = row_index + int(round(step_size*np.cos(adjusted_angle)))
-            col_index = col_index + int(round(step_size*np.sin(adjusted_angle)))
-            map_val = self.get_map_val(row_index, col_index)
+            ray_row_index = start_row_index + int(round(distance*np.cos(adjusted_angle)))
+            ray_col_index = start_col_index + int(round(distance*np.sin(adjusted_angle)))
+            map_val = self.get_map_val(ray_row_index, ray_col_index)
             distance += step_size
         # not necessary, but add on an amount proportional to how full the square is to better estimate
         distance += map_val/100
         # maybe write some code here to avoid immediately stopping rays that are parallel to walls
-        if self.testing_update_weights:
-            print("x:", particle.pose.position.x,"y: ", particle.pose.position.y, "a:", 180*angle/math.pi, "d: ", (distance)*self.map.info.resolution)
         return (distance)*self.map.info.resolution
 
     
@@ -389,7 +387,7 @@ class ParticleFilter:
         angle_delta = get_yaw_from_pose(self.odom_pose.pose) - get_yaw_from_pose(self.odom_pose_last_motion_update.pose)
         for particle in self.particle_cloud:
             # generate some noise for particle movement
-            movement_noise = np.random.normal(0, 0.075, 2)
+            movement_noise = np.random.normal(0, 0.05, 2)
             # noise for particle direction, approx 3degree standard deviation 
             angle_noise = np.random.normal(0, 0.051, 1) 
             # We estimate that the difference between the motion vector of the particle and the orientation
