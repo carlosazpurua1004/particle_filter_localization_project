@@ -1,4 +1,5 @@
 # particle_filter_localization_project
+![gif](particle_filter.gif)
 
 ### Objectives Description
 The objective of this project is to apply our understanding of the particle filter algorithm to solve the problem of robot localization.  It is critical for a robot to understand its position relative to its environment in order to function properly.  The particle filter algorithm is a way to accurately estimate its location in a mapped environment.
