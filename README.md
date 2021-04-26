@@ -71,7 +71,8 @@ TODO
 TODO
 
 ### Challenges
-TODO
+Overall, we found that the actual execution of the project did not differ significantly from what we had outlined in our implementation plan.  As a result, the programming and debugging process went smoothly as a whole.  One of the biggest issues occurred during the implementation of the measurement model.  During testing, a strange divide by zero issue was causing issues.  Although the source was initially difficult to discover, eventually we found that it was caused by not checking for infinite distance from Lidar scans, which is what occurs when there is no object in the given direction.  Outside of this, most of the programming went well.
+
 
 ### Future Work
 TODO
