@@ -198,7 +198,7 @@ class ParticleFilter:
     # starting position
     def test_update_weights(self):
         # list of test particles, including a particle in the same pose as initial posiiton of robot 
-        test_particles_vals = [(-3, 1, 0), (0, 0, 0), (-1, 3, math.pi/2), (1, 2, math.pi)]*100
+        test_particles_vals = [(-3, 1, 0), (0, 0, 0), (-1, 3, math.pi/2), (1, 2, math.pi)]
         self.particle_cloud = []
         for p_vals in test_particles_vals:
             quat_array = quaternion_from_euler(0, 0, p_vals[2])
@@ -370,12 +370,12 @@ class ParticleFilter:
     def estimate_particle_lidar(self, particle:Particle, angle:int) -> float:
         map_indices = self.point_to_map_indices(particle.pose.position)
         start_row_index = map_indices[0]
-        start_col_index = map_indices [1]
+        start_col_index = map_indices[1]
         # this gives us the angle to check relative to the positive x-axis in radians
         adjusted_angle = (angle) + get_yaw_from_pose(particle.pose)
         map_val = self.get_map_val(start_row_index, start_col_index)
         # iterate across map
-        step_size = 0.5
+        step_size = 1
         distance = 0
         ray_row_index = map_indices[0]
         ray_col_index = map_indices [1]
@@ -395,7 +395,7 @@ class ParticleFilter:
             difference_sum = 0
             # for every angle to check, calculate difference between lidar values and estimated value
             for angle in self.directions_to_check:
-                difference_sum += abs(min(data.ranges[int(angle*math.pi/180)], data.range_max) - min(self.estimate_particle_lidar(particle, angle), data.range_max))
+                difference_sum += abs(min(data.ranges[int(angle*180/math.pi)], data.range_max) - min(self.estimate_particle_lidar(particle, angle), data.range_max))
             particle.w = 1/max(difference_sum, 0.01)
         
 
