@@ -75,7 +75,8 @@ Overall, we found that the actual execution of the project did not differ signif
 
 
 ### Future Work
-TODO
+If we had more time to work on this project, we would like to speed up the convergence of the particles.  In the real world, it is not enough to simply create a working model, but one must also ensure that it is fast enough so that it can be applied in real-world situations.  This could be done a few ways.  One way would be improving the particle filter model we have already created.  Another way would be to implement an entirely new model to handle robot localization, such as the beam model.  Regardless, there would be many worthwhile directions we could take to improve our model further.
 
 ### Takeaways
-TODO
+* Divide the project into separate components and set specific deadlines for each component so that partners can work on the same timeframe.  We found that we preferred to work separately on our own time.  However, we did not set specific deadlines for components, leading to difficulty planning things since the components of this project must be done sequentially.
+* Debug each component separately as it is finished according to the implementation plan.  Although we set a decent testing plan in implementation, in practice we delayed on testing at times and it led to greater difficulty debugging.
