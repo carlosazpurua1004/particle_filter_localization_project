@@ -58,26 +58,33 @@ The functionality of this portion is implemnted mainly in the two functions belo
 * `resample_particles()`: Resamples the particle cloud by calling `draw_random_sample()` on the the cloud and its weights, drawing the necessary number of particles we would like.
 
 #### Incorporation of Noise
+This functionality lies entirely within the function below at the specified lines.
 ##### Code Location
-* `update_particles_with_motion_model()`: Lines 410-422
+* `update_particles_with_motion_model()`: Lines 410-420
 ##### Functions/Code Description
-* `update_particles_with_motion_model()`: Within this function, a helper function provided by numpy is used to randomly sample Gaussian distributions of specified sizes.  These random numbers are used in the calculation of the particles’ new estimated location.
+* `update_particles_with_motion_model()`: Within this function, a helper function provided by numpy is used to randomly sample Gaussian distributions of specified sizes. We add on a 2d guassian vector with standard deviation 0.07 (mean 0) to randomly perturb the particles updated position, a random 1d guassian variable with a standard deviation of almost 4 degrees (0.68 radians) (mean 0) to randomly perturb the particles updated direction.
 
 #### Updating Estimated Robot Pose
+This functionality lies entirely within the function below.
 ##### Code Location
 * `update_estimated_robot_pose()`: Line 335
 ##### Functions/Code Description
-* `update_estimated_robot_pose()`: This function sums and averages the position and orientation values of all particles in the cloud to update the estimated robot pose.
+* `update_estimated_robot_pose()`: This funciton takes the average of the position coordinates and orientation quarternions of all the particles in the cloud to update the estimated robot pose.
 
 #### Optimization of Parameters
-TODO
+The variables below are paramters that we experimented with to get the particle filter working. We didn't experiment with `self.lin_mvmt_threshold` or `self.ang_mvmt_threshold`, as this didn't occur to us, though it could have been helpful, and we found the gaussian noise to be just right on the first try.
 ##### Code Location
-TODO
+* `self.num_particles`: Line 107
+* `self.directions_to_check`: Line 122
+* `step_size`: Line 378
 ##### Functions/Code Description
-TODO
+* `self.num_particles`: Controls the number of particles
+* `self.directions_to_check`: A list of all the directions (in radians) we want to compare the lidar scans of. More directions gives a better sense of which particles are good, but means more to check in every cloud update.
+* `step_size`: The steps we take when casting a ray out from a particle to check for the nearest object in a direction. Larger steps means less accuracy for object distance, but quicker computation.
+
 
 ### Challenges
-Overall, we found that the actual execution of the project did not differ significantly from what we had outlined in our implementation plan.  As a result, the programming and debugging process went smoothly as a whole.  One of the biggest issues occurred during the implementation of the measurement model.  During testing, a strange divide by zero issue was causing issues.  Although the source was initially difficult to discover, eventually we found that it was caused by not checking for infinite distance from Lidar scans, which is what occurs when there is no object in the given direction.  Outside of this, most of the programming went well.
+There were quite a few bugs, and the diagnosis for some of them tended to be quite misleading.  One issues occurred during the implementation of the measurement model. During testing, a strange divide by zero issue was causing issues. Although the source was initially difficult to discover, eventually we found that it was caused by not checking for infinite distance from Lidar scans, which is what occurs when there is no object in the given direction. Another bug resulted in the particles converging to exactly one point, and it would take massive leaps around the map. This was caused by not deep copying during resampling, but lead me (Carlos) to believe there were errors in the movement model (which there also were). There was also an error in the measurement model caused by a confusion between angles and radians ( and a decision to switch from using one to the othe).
 
 
 ### Future Work
@@ -85,4 +92,4 @@ If we had more time to work on this project, we would like to make our program m
 
 ### Takeaways
 * Divide the project into separate components and set specific deadlines for each component so that partners can work on the same timeframe.  We found that we preferred to work separately on our own time.  However, we did not set specific deadlines for components, leading to difficulty planning things since the components of this project must be done sequentially.
-* Debug each component separately as it is finished according to the implementation plan.  Although we set a decent testing plan in implementation, in practice we delayed on testing at times and it led to greater difficulty debugging.
+* Rigirously Debug each component separately as it is finished according to the implementation plan. Although we set a decent testing plan in implementation, in practice we delayed on testing at times and it led to greater difficulty debugging. Some of the testing I (Carlos) did initially did not catch bugs that caused me headaches later, because frankly it not as robust as it should have been. Making sure the measurement model behaved exactly as it should have would have definitely helped for example.
